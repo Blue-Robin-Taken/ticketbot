@@ -79,73 +79,83 @@ class TicketMessageView(View):
 
 
 class TicketCreateModal(discord.ui.Modal):
-    def __init__(self, ):
+    """
+    Given to user when the user creates a ticket from the button attached to the ticket message.
+    """
+    def __init__(self, button_custom_id):
+
         super().__init__(title='Ticket Info', timeout=None)
+        self.button_custom_id = button_custom_id
         self.add_item(discord.ui.InputText(style=discord.InputTextStyle.short, label='Username'))  # Index 0
         self.add_item(
             discord.ui.InputText(style=discord.InputTextStyle.short, label='Coin Amount (Int value) in m'))  # Index 1
-        self.add_item(discord.ui.InputText(style=discord.InputTextStyle.short, label='Payment Method'))  # Index 2
 
     async def callback(self, interaction):
-        if self.children[2].value in PAYMENT_CATEGORIES:
-            if int(self.children[1].value) >= 200:
-                select_category = None  # Used later to change category perms
-                c = None  # The channel used
-                for category in interaction.guild.categories:
-                    if category.name == self.children[2].value.lower():
-                        c = await category.create_text_channel(
-                            name=f'{self.children[2].value}-{self.children[1].value}')
-                        select_category = category
-                        # await category.set_permissions(overwrite=c.overwrites)
-                        break
-                if c is None:
-                    category = await interaction.guild.create_category(name=self.children[2].value.lower())
-                    c = await category.create_text_channel(name=f'{self.children[2].value}-{self.children[1].value}')
+        if int(self.children[1].value) >= 200:
+            select_category = None  # Used later to change category perms
+            c = None  # The channel used
+            print(self.button_custom_id)
+            for category in interaction.guild.categories:
+                if category.name == str(self.button_custom_id).lower():
+                    c = await category.create_text_channel(
+                        name=f'{str(self.button_custom_id)}-{self.children[1].value}')
                     select_category = category
-                # https://docs.pycord.dev/en/stable/api/data_classes.html#discord.Permissions
+                    # await category.set_permissions(overwrite=c.overwrites)
+                    break
+            if c is None:
+                category = await interaction.guild.create_category(name=str(self.button_custom_id).lower())
+                c = await category.create_text_channel(name=f'{str(self.button_custom_id)}-{self.children[1].value}')
+                select_category = category
+            # https://docs.pycord.dev/en/stable/api/data_classes.html#discord.Permissions
 
-                await c.set_permissions(interaction.guild.default_role, send_messages=False, read_messages=False,
-                                        view_channel=False)  # Set permissions for @everyone
-                await c.set_permissions(interaction.user, send_messages=True, read_messages=True,
-                                        view_channel=True)  # Set perms for user
-                if 200 <= int(self.children[1].value) <= 300:  # Junior sellers for specific money amounts
-                    await c.set_permissions(
-                        await discord.utils.get_or_fetch(interaction.guild, 'role', id=OTHER_ROLE_ID),
-                        send_messages=True, read_messages=True,
-                        view_channel=True)  # Set perms for the specific role
-                print(c.overwrites)
-                for target in c.overwrites:
+            await c.set_permissions(interaction.guild.default_role, send_messages=False, read_messages=False,
+                                    view_channel=False)  # Set permissions for @everyone
+            await c.set_permissions(interaction.user, send_messages=True, read_messages=True,
+                                    view_channel=True)  # Set perms for user
+            if 200 <= int(self.children[1].value) <= 300:  # Junior sellers for specific money amounts
+                await c.set_permissions(
+                    await discord.utils.get_or_fetch(interaction.guild, 'role', id=OTHER_ROLE_ID),
+                    send_messages=True, read_messages=True,
+                    view_channel=True)  # Set perms for the specific role
+            print(c.overwrites)
+            for target in c.overwrites:
+                try:
                     await select_category.set_permissions(target, overwrite=c.overwrites[target])
-                embed = discord.Embed(
-                    title=f'Ticket by: {self.children[0].value}',
-                    description=f'Payment Method: {self.children[1].value} \n Coin Amount: {self.children[2].value} \n Stats: https://sky.shiiyu.moe/stats/{self.children[0].value}',
-                    color=discord.Color.random()
-                )
-                await c.send(embed=embed, view=TicketMessageView())
-                await interaction.response.send_message(f'Created a new ticket!', ephemeral=True)
-            else:
-                return "Invalid Coin Amount"
+                except KeyError:
+                    pass
+            embed = discord.Embed(
+                title=f'Ticket by: {self.children[0].value}',
+                description=f'Payment Method: {str(self.button_custom_id)} \n Coin Amount: {self.children[1].value} \n Stats: https://sky.shiiyu.moe/stats/{self.children[0].value}',
+                color=discord.Color.random()
+            )
+            await c.send(embed=embed, view=TicketMessageView())
+            await interaction.response.send_message(f'Created a new ticket!', ephemeral=True)
         else:
-            return "Invalid Payment"
+            return "Invalid Coin Amount"
 
 
 class TicketButtons(View):
     def __init__(self, initialization):
         super().__init__(timeout=None)
-        max_buttons = 5
+        # max_buttons = 5
         if initialization:
-            for i in range(max_buttons):
-                self.add_item(self.NormalButton('', custom_id=f'button-{i}'))
+            data = json.loads(os.path.relpath('store.json'))
+            for id_ in data['LoadIds']:
+                self.add_item(self.NormalButton('', 'loadLabel', custom_id=id_))
 
     class NormalButton(Button):
-        def __init__(self, emoji, custom_id):
-            super().__init__(emoji=emoji, custom_id=custom_id)
+        def __init__(self, emoji, label, custom_id):
+            super().__init__(emoji=emoji, label=label, custom_id=custom_id)
 
         async def callback(self, interaction):
-            await interaction.response.send_modal(TicketCreateModal())
+            await interaction.response.send_modal(TicketCreateModal(self.custom_id))
 
 
 class TicketChannelModal(discord.ui.Modal):
+    """
+    This modal is used for creating a new button on the ticket message.
+    """
+
     def __init__(self, m, bot):
         super().__init__(title='Options for Ticket Options', timeout=None)
 
@@ -156,6 +166,9 @@ class TicketChannelModal(discord.ui.Modal):
         self.add_item(
             discord.ui.InputText(label='Description', style=discord.InputTextStyle.long, min_length=1)
         )
+        self.add_item(
+            discord.ui.InputText(label='Category', style=discord.InputTextStyle.short, min_length=1)
+        )
         self.m = m
         self.bot = bot
 
@@ -164,10 +177,17 @@ class TicketChannelModal(discord.ui.Modal):
                                                   self.m.id)  # https://docs.pycord.dev/en/stable/api/utils.html#discord.utils.get_or_fetch
         new_view = discord.ui.View.from_message(self.m)
         new_view.timeout = None
-
+        button_add = TicketButtons.NormalButton(emoji=self.children[0].value, label=self.children[1].value,
+                                                custom_id=self.children[3].value)
         new_view.add_item(
-            TicketButtons.NormalButton(emoji=self.children[0].value, custom_id=f'button-{len(new_view.children)}')
+            button_add
         )
+        # -- Saving the view to store.json --
+        with open('store.json', 'r+') as store:
+            data = json.load(store)
+            data['LoadIds'].append(str(self.children[3].value))
+            store.seek(0)
+            json.dump(obj=data, fp=store)
         new_embed: discord.Embed = self.m.embeds[0]
         new_embed.add_field(name=self.children[1].value + f' {self.children[0].value}', value=self.children[2].value,
                             inline=False)
@@ -175,7 +195,7 @@ class TicketChannelModal(discord.ui.Modal):
         await interaction.response.send_message(str(self.children))
 
     async def on_error(self, error: Exception, interaction):
-        print('Missing Permissions: ' + str(error) + '\n at' + interaction.channel.name)
+        print('Err: \n' + str(error) + '\n at ' + interaction.channel.name)
 
 
 class AddModalTicketCreate(discord.ui.View):
