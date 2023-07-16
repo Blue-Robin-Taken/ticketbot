@@ -82,6 +82,7 @@ class TicketCreateModal(discord.ui.Modal):
     """
     Given to user when the user creates a ticket from the button attached to the ticket message.
     """
+
     def __init__(self, button_custom_id):
 
         super().__init__(title='Ticket Info', timeout=None)
@@ -107,11 +108,10 @@ class TicketCreateModal(discord.ui.Modal):
                 c = await category.create_text_channel(name=f'{str(self.button_custom_id)}-{self.children[1].value}')
                 select_category = category
             # https://docs.pycord.dev/en/stable/api/data_classes.html#discord.Permissions
-
-            await c.set_permissions(interaction.guild.default_role, send_messages=False, read_messages=False,
-                                    view_channel=False)  # Set permissions for @everyone
-            await c.set_permissions(interaction.user, send_messages=True, read_messages=True,
-                                    view_channel=True)  # Set perms for user
+            overwrite_perms = discord.PermissionOverwrite(send_messages=False, read_messages=False,
+                                                          view_channel=False)
+            await c.set_permissions(interaction.guild.default_role, overwrite=overwrite_perms)  # Set permissions for @everyone
+            await c.set_permissions(interaction.user, overwrite=overwrite_perms)  # Set perms for user
             if 200 <= int(self.children[1].value) <= 300:  # Junior sellers for specific money amounts
                 await c.set_permissions(
                     await discord.utils.get_or_fetch(interaction.guild, 'role', id=OTHER_ROLE_ID),
@@ -139,9 +139,11 @@ class TicketButtons(View):
         super().__init__(timeout=None)
         # max_buttons = 5
         if initialization:
-            data = json.loads(os.path.relpath('store.json'))
-            for id_ in data['LoadIds']:
-                self.add_item(self.NormalButton('', 'loadLabel', custom_id=id_))
+            with open('store.json') as f:
+                data = json.load(f)
+                for id_ in data['LoadIds']:
+                    self.add_item(self.NormalButton('', 'loadLabel', custom_id=id_))
+                f.close()
 
     class NormalButton(Button):
         def __init__(self, emoji, label, custom_id):
