@@ -110,7 +110,8 @@ class TicketCreateModal(discord.ui.Modal):
             # https://docs.pycord.dev/en/stable/api/data_classes.html#discord.Permissions
             overwrite_perms = discord.PermissionOverwrite(send_messages=False, read_messages=False,
                                                           view_channel=False)
-            await c.set_permissions(interaction.guild.default_role, overwrite=overwrite_perms)  # Set permissions for @everyone
+            await c.set_permissions(interaction.guild.default_role,
+                                    overwrite=overwrite_perms)  # Set permissions for @everyone
             await c.set_permissions(interaction.user, overwrite=overwrite_perms)  # Set perms for user
             if 200 <= int(self.children[1].value) <= 300:  # Junior sellers for specific money amounts
                 await c.set_permissions(
@@ -147,7 +148,7 @@ class TicketButtons(View):
 
     class NormalButton(Button):
         def __init__(self, emoji, label, custom_id):
-            super().__init__(emoji=emoji, label=label, custom_id=custom_id)
+            super().__init__(emoji=emoji, label=label, custom_id=custom_id, style=discord.ButtonStyle.blurple)
 
         async def callback(self, interaction):
             await interaction.response.send_modal(TicketCreateModal(self.custom_id))
@@ -164,9 +165,9 @@ class TicketChannelModal(discord.ui.Modal):
         self.add_item(
             discord.ui.InputText(label='Emoji', style=discord.InputTextStyle.short, min_length=1))
         self.add_item(discord.ui.InputText(label='Title', style=discord.InputTextStyle.singleline,
-                                           min_length=1, max_length=255))
+                                           min_length=1, max_length=255, required=False))
         self.add_item(
-            discord.ui.InputText(label='Description', style=discord.InputTextStyle.long, min_length=1)
+            discord.ui.InputText(label='Description', style=discord.InputTextStyle.long, min_length=1, required=False)
         )
         self.add_item(
             discord.ui.InputText(label='Category', style=discord.InputTextStyle.short, min_length=1)
@@ -179,8 +180,8 @@ class TicketChannelModal(discord.ui.Modal):
                                                   self.m.id)  # https://docs.pycord.dev/en/stable/api/utils.html#discord.utils.get_or_fetch
         new_view = discord.ui.View.from_message(self.m)
         new_view.timeout = None
-        button_add = TicketButtons.NormalButton(emoji=self.children[0].value, label=self.children[1].value,
-                                                custom_id=self.children[3].value)
+        button_add = TicketButtons.NormalButton(emoji=self.children[0].value,
+                                                custom_id=self.children[3].value, label=None)
         new_view.add_item(
             button_add
         )
@@ -191,7 +192,12 @@ class TicketChannelModal(discord.ui.Modal):
             store.seek(0)
             json.dump(obj=data, fp=store)
         new_embed: discord.Embed = self.m.embeds[0]
-        new_embed.add_field(name=self.children[1].value + f' {self.children[0].value}', value=self.children[2].value,
+        if self.children[1].value is None:
+            self.children[1].value = ''
+        if self.children[2].value is None:
+            self.children[2].value = ''
+        new_embed.add_field(name=f'[{self.children[0].value}] {self.children[1].value}',
+                            value=self.children[2].value,
                             inline=False)
         await self.m.edit(view=new_view, embed=new_embed)
         await interaction.response.send_message(str(self.children))
